@@ -172,10 +172,8 @@ def main() -> None:
     model.write()
     if args.dry_run:
         return
-    from qwen4_native_ngrams import repack
-    repack(tmp, Path(args.src), out, args.source_revision)
-    tmp.unlink()
-    print(f"wrote {out} ({out.stat().st_size / 1e9:.2f} GB)")
+    tmp.rename(out)   # keep main-only; n-grams appended later
+    return
 
 
 if __name__ == "__main__":
