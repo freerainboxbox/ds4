@@ -104,6 +104,53 @@ This avoids keeping a second copy of the original safetensors. The final
 Q2 and Q4 files include 95.37 GiB of disk-only n-grams; no table precision
 is lost, and the main-model quantization is unchanged.
 
+### Share One N-gram Table Across Packs
+
+Every pack built from the same checkpoint carries the same BF16 n-gram table,
+and the runtime reads it with preads instead of mapping it, so the table is
+pure disk. `gguf-tools/gguf_refalign.py` makes a new pack share the table of a
+pack that was built beside it:
+
+```sh
+python3 gguf-tools/gguf_refalign.py \
+  gguf/Qwen3.8-Flash-Next-Q4.gguf \
+  gguf/Qwen3.8-Flash-Next-Uncensored-Q4.gguf \
+  --verify --report gguf/uncensored-refalign.json --install
+```
+
+The output starts as an APFS clone of the reference, so the table is already
+there for free. The tool rewrites the header so the sibling's
+`per_layer_token_embd.weight` lands on the reference table's absolute offset,
+copies the main model into page-aligned slots, punches the gap that the move
+leaves behind, and compares every payload tensor against the input before
+`--install` renames the original aside as `<model>.pre-refalign`. Main tensors
+are aligned to the VM page size and recorded in `general.alignment`, so the
+repacked pack stays runnable on its own. Two Q4 packs land on 95.37 GiB of
+shared extents: 234 GiB of disk for the pair instead of 330 GiB. Only the
+trailing tables are shared, plus any main-model chunk that happens to land on
+the reference's bytes, so a fine-tune still pays for its own main model.
+`--table` names the disk-only tensors, and several of them are pinned together
+-- a DeepSeek V4.1 pair would pass `--table
+blk.1.engram_embd.weight,blk.14.engram_embd.weight`, as the runtime already
+demands both tables trail the page-aligned main weights. Remove the
+`.pre-refalign` file to reclaim; if `df` does not drop, a local Time Machine
+snapshot still holds it (`tmutil listlocalsnapshots /`).
+
+Reflink deduplication only shares bytes at the same absolute file offset (APFS
+has no range clone) and only in whole pages, so a generic pass such as
+`refdelta` finds nothing while each pack keeps its own table offset, and
+re-padding the tensor data section with `general.alignment` does not help: the
+table sits behind the main model and moves with it. Pinning the table offset
+is what works, and it needs from the anchor exactly what the runtime needs
+anyway: the table trails every other tensor, starts on a page boundary, and
+leaves enough slack behind it for the sibling's main model. The anchor is never
+modified, so it stays the anchor for the next sibling; if a main model does not
+fit, the tool stops before writing anything.
+
+```sh
+python3 -m unittest discover -s gguf-tools/tests -p test_gguf_refalign.py
+```
+
 ## Build
 
 ```sh

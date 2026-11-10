@@ -25,6 +25,8 @@ BF16 n-grams, and updates `ds4flash.gguf`:
 The 95.37 GiB n-gram table stays on disk. The runtime reads selected rows
 directly from the GGUF, without mapping or preloading the table. Keep the
 file on a fast local SSD. No sidecar or n-gram option is needed.
+Several packs of the same checkpoint can share that one table on disk; see
+[share one n-gram table across packs](../gguf-tools/README.md#share-one-n-gram-table-across-packs).
 
 The Q2 model uses IQ2_XXS gate/up experts and Q2_K down projections padded
 from 640 to 768 columns, calibrated with an imatrix. Q4 uses calibrated
