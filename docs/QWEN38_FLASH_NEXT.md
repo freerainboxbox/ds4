@@ -265,6 +265,19 @@ active `qwen4exp` schema. Finish older main-only conversions with
 `gguf-tools/qwen4_native_ngrams.py`, using the original HF n-gram shards.
 Expanding an old quantized table to BF16 does not restore its lost precision.
 
+Example, for Q4:
+```
+python gguf-tools/qwen4_exp_convert.py --src <cloned HF repo with Git LFS shards downloaded> --source-revision <commit hash> --out ft-mxfp4-main.gguf --outtype q8_0 --experts mxfp4 --llama-cpp <built llama.cpp dir>
+
+python gguf-tools/qwen4_q4k.py quantize --source <cloned HF repo with Git LFS shards downloaded> --imatrix <location of imatrix_unsloth.gguf_file> --library gguf-tools/libds4quants.dylib --experts-dir q4k-experts --threads <n>
+
+python gguf-tools/qwen4_q4k.py assemble --template ft-mxfp4-main.gguf --experts-dir q4k-experts --out ft-q4k-main.gguf
+
+python3 gguf-tools/qwen4_native_ngrams.py --model ft-q4k-main.gguf --source <cloned HF repo> --source-revision <commit hash> --output Qwen3.8-Flash-Next-Q4.gguf
+
+# Qwen3.8-Flash-Next-Q4.gguf is the final model file to load
+```
+
 ## Vision
 
 Images go through the model's Qwen3-VL vision tower. Download the encoder
